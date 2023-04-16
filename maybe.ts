@@ -3,19 +3,19 @@
 //	Hele lightweight Nothing / Just implementatie v2
 //
 
-type Fn<I, O> = (p0: I) => O;
-type Action<O> = () => O;
-interface MonadicFunctor<T> {
-	// static from<I>(val: B): Monadic<B>;
-	map<R>(f: Fn<T, R>): MonadicFunctor<R>;
-	chain<R>(f: Fn<T, MonadicFunctor<R>>): MonadicFunctor<R>;
-	fold<R>(nothingValue: R, onJust: Fn<T, R>): R;
-	foldL<R>(onNothing: Action<R>, onJust: Fn<T, R>): R;
-}
+import { Functor, Monad, Foldable, LazyFoldable, Applicative, Fn1, Fn0 } from './Functor';
 
-interface Applicative<T> {
-	ap<R>(v: Applicative<R>): Applicative<T>;
-}
+// interface MonadicFunctor<T> {
+// 	// static from<I>(val: B): Monadic<B>;
+// 	map<R>(f: Fn<T, R>): MonadicFunctor<R>;
+// 	chain<R>(f: Fn<T, MonadicFunctor<R>>): MonadicFunctor<R>;
+// 	fold<R>(nothingValue: R, onJust: Fn<T, R>): R;
+// 	foldL<R>(onNothing: Action<R>, onJust: Fn<T, R>): R;
+// }
+
+// interface Applicative<T> {
+// 	ap<R>(v: Applicative<R>): Applicative<T>;
+// }
 
 interface MaybeQuery {
 	isSome(): boolean;
@@ -24,12 +24,12 @@ interface MaybeQuery {
 
 interface MaybeExtensions<T> {
 	or<R>(nothingValue: R): T | R;
-	then<R>(onJust: Fn<T, R>): void;
+	then<R>(onJust: Fn1<T, R>): void;
 }
 
 export type Maybe<T> = Just<T> | Nothing<T>;
 
-class Just<T> implements MonadicFunctor<T>, MaybeQuery, MaybeExtensions<T>, Applicative<Maybe<T>> {
+class Just<T> implements MaybeQuery, MaybeExtensions<T>, Functor<T>, Monad<T>, Foldable<T>, LazyFoldable<T>, Applicative<T> {
 	private constructor(protected val: T) {}
 
 	static from<T>(val: T): Maybe<T> {
@@ -48,22 +48,22 @@ class Just<T> implements MonadicFunctor<T>, MaybeQuery, MaybeExtensions<T>, Appl
 		return !!val ? new Just(val) : Nothing.from(val);
 	}
 
-	map<R>(f: Fn<NonNullable<T>, R>): Maybe<R> {
+	map<R>(f: Fn1<NonNullable<T>, R>): Maybe<R> {
 		return Just.from(f(this.val as NonNullable<T>));
 	}
-	mapNullable<R>(f: Fn<NonNullable<T>, R>): Maybe<R> {
+	mapNullable<R>(f: Fn1<NonNullable<T>, R>): Maybe<R> {
 		return Just.fromNullable(f(this.val as NonNullable<T>));
 	}
 
-	chain<R>(f: Fn<NonNullable<T>, Maybe<R>>): Maybe<R> {
+	chain<R>(f: Fn1<NonNullable<T>, Maybe<R>>): Maybe<R> {
 		return f(this.val as NonNullable<T>);
 	}
 
-	fold<R>(_: R, onJust: Fn<NonNullable<T>, R>): R {
+	fold<R>(noneValue: R, onJust: Fn1<NonNullable<T>, R>): R {
 		return onJust(this.val as NonNullable<T>);
 	}
 
-	foldL<R>(_: Action<R>, onJust: Fn<NonNullable<T>, R>): R {
+	foldL<R>(onNone: Fn0<R>, onJust: Fn1<NonNullable<T>, R>): R {
 		return onJust(this.val as NonNullable<T>);
 	}
 
@@ -83,18 +83,18 @@ class Just<T> implements MonadicFunctor<T>, MaybeQuery, MaybeExtensions<T>, Appl
 		return Just.from(this.val);
 	}
 
-	then(onJust: Fn<T, void>): void {
+	then(onJust: Fn1<T, void>): void {
 		return onJust(this.val);
 	}
 
-	ap<R>(v: Maybe<R>): Maybe<any> {
+	ap<R, S>(v: Maybe<R>): Maybe<S> {
 		if (typeof this.val === 'function') {
 			const fn = this.val as Function;
 			return v.map(x => fn(x));
 		} else throw new Error('not supported');
 	}
 }
-class Nothing<T> implements MonadicFunctor<T>, MaybeQuery, MaybeExtensions<T>, Applicative<Maybe<T>> {
+class Nothing<T> implements MaybeQuery, MaybeExtensions<T>, Functor<T>, Monad<T>, Foldable<T>, LazyFoldable<T>, Applicative<T> {
 	private constructor(_?: T) {}
 
 	static from<T>(val?: T): Nothing<T> {
@@ -104,23 +104,23 @@ class Nothing<T> implements MonadicFunctor<T>, MaybeQuery, MaybeExtensions<T>, A
 		return new Nothing(val);
 	}
 
-	map<R>(_: Fn<NonNullable<T>, R>): Maybe<R> {
+	map<R>(_: Fn1<NonNullable<T>, R>): Maybe<R> {
 		return Nothing.from<R>();
 	}
 
-	mapNullable<R>(_: Fn<NonNullable<T>, R>): Maybe<R> {
+	mapNullable<R>(_: Fn1<NonNullable<T>, R>): Maybe<R> {
 		return Nothing.fromNullable<R>();
 	}
 
-	chain<R>(_: Fn<NonNullable<T>, Maybe<R>>): Maybe<R> {
+	chain<R>(_: Fn1<NonNullable<T>, Maybe<R>>): Maybe<R> {
 		return Nothing.from<R>();
 	}
 
-	fold<R>(nothingValue: R, _: Fn<NonNullable<T>, R>): R {
+	fold<R>(nothingValue: R, _: Fn1<NonNullable<T>, R>): R {
 		return nothingValue;
 	}
 
-	foldL<R>(onNothing: Action<R>, _: Fn<NonNullable<T>, R>): R {
+	foldL<R>(onNothing: Fn0<R>, _: Fn1<NonNullable<T>, R>): R {
 		return onNothing();
 	}
 
@@ -139,12 +139,12 @@ class Nothing<T> implements MonadicFunctor<T>, MaybeQuery, MaybeExtensions<T>, A
 		return nothingMaybe;
 	}
 
-	then(_: Fn<T, void>): void {
+	then(_: Fn1<T, void>): void {
 		return; // do nothing
 	}
 
-	ap<R>(v: Maybe<R>): Maybe<any> {
-		return Nothing.from<R>();
+	ap<R, S>(v: Maybe<R>): Maybe<S> {
+		return Nothing.from<S>();
 	}
 }
 
