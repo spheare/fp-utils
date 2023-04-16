@@ -2,12 +2,12 @@ type Fn<I, O> = (p0: I) => O;
 
 // E: Eror, V=Value
 
-interface Mappable<E, V> {
-	map<R>(f: Fn<V, R>): Mappable<E, R>;
+interface Functor<E, V> {
+	map<R>(f: Fn<V, R>): Functor<E, R>;
 }
 
-interface Chainable<E, V> {
-	chain<R>(f: Fn<V, Chainable<E, R>>): Chainable<E, R>;
+interface Monad<E, V> {
+	chain<R>(f: Fn<V, Monad<E, R>>): Monad<E, R>;
 }
 
 interface Foldable<E, V> {
@@ -18,7 +18,13 @@ interface Applicative<E, V> {
 	ap<O>(v: Applicative<E, V>): Applicative<E, O>;
 }
 
-class Right<E, V> implements Mappable<E, V>, Chainable<E, V>, Foldable<E, V>, Applicative<E, V> {
+interface Traversable<E, V> {
+	// typedefs kloppen nog niet
+	// sequence<T>(of: Fn<T, Traversable<E, V>>): Traversable<E, V>;
+	// traverse<T>(of: Fn<T, Traversable<E, T>>, fn: Fn<Functor<E, T>, Functor<E, V>>): Either<E, V>;
+}
+
+class Right<E, V> implements Functor<E, V>, Monad<E, V>, Foldable<E, V>, Applicative<E, V>, Traversable<E, V> {
 	constructor(private val: V) {}
 	inspect() {
 		return `Right(${this.val})`;
@@ -44,9 +50,18 @@ class Right<E, V> implements Mappable<E, V>, Chainable<E, V>, Foldable<E, V>, Ap
 
 		throw new Error('not supported');
 	}
+
+	// // ----- Traversable (Either a)
+	// sequence<T>(of: Fn<T, Either<E, V>>) {
+	// 	return this.traverse(Right.of, x => x);
+	// }
+
+	// traverse<T>(of: Fn<T, Either<E, T>>, fn: Fn<Either<E, T>, Either<E, V>>): Either<E, V> {
+	// 	return fn(this).map(Right.of);
+	// }
 }
 
-class Left<E, V> implements Mappable<E, V>, Chainable<E, V>, Foldable<E, V>, Applicative<E, V> {
+class Left<E, V> implements Functor<E, V>, Monad<E, V>, Foldable<E, V>, Applicative<E, V> {
 	constructor(private val: E) {}
 	inspect() {
 		return `Left(${this.val})`;
@@ -68,9 +83,7 @@ class Left<E, V> implements Mappable<E, V>, Chainable<E, V>, Foldable<E, V>, App
 	}
 
 	ap<O>(v: Either<E, V>): Either<E, O> {
-		if (typeof this.val === 'function') return v.map(this.val as Fn<V, O>);
-
-		throw new Error('not supported');
+		return Left.of(this.val);
 	}
 }
 
